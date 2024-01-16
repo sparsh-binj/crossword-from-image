@@ -3,6 +3,7 @@ from pytesseract import pytesseract
 import numpy as np
 from ultralytics import YOLO
 import torch
+import re
 from roboflow import Roboflow
 
 """
@@ -77,15 +78,16 @@ def find_grid_and_clues(image_path):
 
 def process_image(img):
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    _, bnw = cv2.threshold(gray, 170, 255, cv2.THRESH_BINARY)
 
     # Apply Laplacian filter for image sharpening
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
     sharp = cv2.filter2D(gray, -1, kernel)
 
     processed = cv2.GaussianBlur(gray, (3,3), 1)
-    _, processed = cv2.threshold(processed, 175, 255, cv2.THRESH_BINARY)
+    _, processed = cv2.threshold(processed, 165, 255, cv2.THRESH_BINARY)
 
-    return gray, sharp, processed
+    return bnw, sharp, processed
 
 
 def find_contours(img):
@@ -149,44 +151,65 @@ def ocr_clues(img):
     text = pytesseract.image_to_string(img, config='--psm 3 --oem 3 -c tessedit_char_whitelist=" \'0123456789abcdefghijlkmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,.!;()"')
     clues_list = text.split("\n")
     clues_list = list(filter(lambda x: x != '', clues_list))
-    print(clues_list)
+    a_index = clues_list.index('ACROSS')
+    d_index = clues_list.index('DOWN')
+    across_clues = clean_clues(clues_list[a_index+1:d_index])
+    down_clues = clean_clues(clues_list[d_index+1:-1])
+    return across_clues, down_clues
+
+
+def clean_clues(clues_list):
+    for i in range(len(clues_list)-1):
+        if i >= len(clues_list):
+            break
+        if re.search(r'\(\d{1,2}\)', clues_list[i]) is None:
+            clues_list[i] = clues_list[i].strip() + " " + clues_list[i+1].strip()
+            del clues_list[i+1]
     return clues_list
 
+
+def grid_representation_from_image(img):
+    sq_side = 50
+    rows = 13
+    grid_representation = np.zeros((rows, rows))
+    for i in range(rows):
+        for j in range(rows):
+            grid_sq = img[i*sq_side:(i+1)*sq_side, j*sq_side:(j+1)*sq_side]
+            white_count = np.count_nonzero(grid_sq)
+            print(f"#: {i},{j}\tWhite: {white_count}\tResult: {white_count >= sq_side*sq_side*0.5}")
+            grid_representation[i, j] = 1 if white_count >= sq_side*sq_side*0.7 else 0 if white_count <= sq_side*sq_side*0.4 else 2
+    print(grid_representation)
+
+
+# def incorporate_numbers(grid)
+
+
 # Create 3 versions of Grid image
-img_path = "Original Images/Crossword-00010.jpeg"
+img_path = "Original Images/Crossword-00015.jpeg"
 grid_img, clues_img = find_grid_and_clues(img_path)
 gray_grid_img, sharp_grid_img, processed_grid_img = process_image(grid_img)
 gray_clues_img, sharp_clues_img, processed_clues_img = process_image(clues_img)
 
 # Find grid numbers
 grid_contour_list = find_contours(processed_grid_img)
+contour_img = cv2.drawContours(grid_img, grid_contour_list, -1, (0,255,0), 3)
 grid_num_pos_list, grid_num_img = filter_number_contours(grid_contour_list, grid_img)
 grid_num_prediction_list = ocr_grid_numbers(grid_num_pos_list, sharp_grid_img)
-print(grid_num_prediction_list)
 
 # Find clues list
-clues_text1 = ocr_clues(clues_img)
-clues_text2 = ocr_clues(sharp_clues_img)
+across_list, down_list = ocr_clues(clues_img)
+# clues_text2 = ocr_clues(sharp_clues_img)
+
+grid_representation_from_image(gray_grid_img)
 
 
 
-# hough_img = processed_img.copy()
-# hough_img = cv2.Canny(hough_img, 30, 60, None, 3)
-# cdstP = cv2.cvtColor(hough_img, cv2.COLOR_GRAY2BGR)
-# linesP = cv2.HoughLinesP(hough_img, 1, np.pi / 180, 50, None, 50, 10)
-# if linesP is not None:
-#     for i in range(0, len(linesP)):
-#         l = linesP[i][0]
-#         cv2.line(cdstP, (int(l[0]), int(l[1])), (int(l[2]), int(l[3])), (0, 255, 0), 2)
-
-
-cv2.imshow('Grid Image', grid_img)
-cv2.imshow('Clues Image', clues_img)
+cv2.imshow('Grid Image', processed_grid_img)
+# cv2.imshow('Clues Image', gray_clues_img)
 # cv2.imshow('Sharp Image', sharp_grid_img)
 # cv2.imshow('Processed Image', processed_clues_img)
-# cv2.imshow('Contour Image', grid_num_img)
-# cv2.imshow('Hough Image', hough_img)
-# cv2.imshow("Detected Lines - Probabilistic Line Transform", cdstP)
+cv2.imshow('Contour Image', contour_img)
+
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
