@@ -1,77 +1,47 @@
-import pygame
-import sys
+import tkinter as tk
 
-# Define puzzle grid and clues
-puzzle_grid = [
-    ['C', 'R', 'O', 'S', 'S', 'W', 'O', 'R', 'D', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-    [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+class CrosswordGUI:
+    def __init__(self, clues, grid):
+        self.clues = clues
+        self.grid = grid
+        self.current_cell = None
+
+        self.root = tk.Tk()
+        self.root.title("Crossword Puzzle")
+
+        self.create_grid()
+
+    def create_grid(self):
+        for i in range(len(self.grid)):
+            for j in range(len(self.grid[i])):
+                cell_value = self.grid[i][j]
+                if cell_value == -1:
+                    label = tk.Label(self.root, text="", width=2, height=1, bg="black")
+                elif cell_value == 0:
+                    label = tk.Label(self.root, text="", width=2, height=1, relief="solid")
+                    label.bind("<Button-1>", lambda event, i=i, j=j: self.on_click(i, j))
+                else:
+                    label = tk.Label(self.root, text=str(cell_value), width=2, height=1, relief="solid")
+
+                label.grid(row=i, column=j)
+
+        self.root.mainloop()
+
+    def on_click(self, i, j):
+        if self.current_cell:
+            self.current_cell.destroy()
+
+        self.current_cell = tk.Entry(self.root, width=2)
+        self.current_cell.grid(row=i, column=j)
+        self.current_cell.focus_set()
+
+# Example usage:
+clues = {'across': ['1. First clue', '2. Second clue'], 'down': ['3. Third clue', '4. Fourth clue']}
+grid = [
+    [1, -1, 2, -1],
+    [0, 0, 0, -1],
+    [3, 0, 0, 4],
+    [0, -1, -1, -1]
 ]
 
-clues = {
-    'across': {
-        1: "Opposite of down",
-        4: "Not odd",
-        7: "A long narrative poem",
-    },
-    'down': {
-        1: "A brief written or spoken account",
-        2: "A place for storing grain",
-        3: "Frozen water",
-    }
-}
-
-# Initialize pygame
-pygame.init()
-
-# Define colors
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-
-# Set up the display
-cell_size = 40
-window_size = (len(puzzle_grid) * cell_size, len(puzzle_grid[0]) * cell_size)
-screen = pygame.display.set_mode(window_size)
-pygame.display.set_caption("Crossword Puzzle")
-
-# Function to draw the crossword grid
-def draw_grid():
-    for i in range(len(puzzle_grid)):
-        for j in range(len(puzzle_grid[i])):
-            pygame.draw.rect(screen, WHITE, (j * cell_size, i * cell_size, cell_size, cell_size), 1)
-            if puzzle_grid[i][j] != ' ':
-                font = pygame.font.Font(None, 36)
-                text = font.render(puzzle_grid[i][j], True, BLACK)
-                screen.blit(text, (j * cell_size + 15, i * cell_size + 10))
-
-# Function to draw clues
-def draw_clues():
-    font = pygame.font.Font(None, 24)
-    for direction, direction_clues in clues.items():
-        for number, clue_text in direction_clues.items():
-            text = font.render(f"{number}. {clue_text}", True, BLACK)
-            if direction == 'across':
-                screen.blit(text, (window_size[0] // 2, number * 25))
-            else:
-                screen.blit(text, (window_size[0] // 2 + 200, number * 25))
-
-# Main game loop
-while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-
-    screen.fill(WHITE)
-    draw_grid()
-    draw_clues()
-    pygame.display.flip()
+crossword_gui = CrosswordGUI(clues, grid)

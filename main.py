@@ -37,7 +37,7 @@ from roboflow import Roboflow
 def find_grid_and_clues(image_path):
     rf = Roboflow(api_key="sBKzAHQRCL6ucVQ8DuCw")
     project = rf.workspace("random-ideas").project("crossword-image-segmentation")
-    model = project.version(2).model
+    model = project.version(3).model
 
     # model = YOLO("yolov8n.yaml")
     # results = model.train(
@@ -81,17 +81,21 @@ def process_image(img):
     _, bnw = cv2.threshold(gray, 170, 255, cv2.THRESH_BINARY)
 
     # Apply Laplacian filter for image sharpening
-    kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+    kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
     sharp = cv2.filter2D(gray, -1, kernel)
 
-    processed = cv2.GaussianBlur(gray, (3,3), 1)
-    _, processed = cv2.threshold(processed, 165, 255, cv2.THRESH_BINARY)
+    processed = cv2.GaussianBlur(sharp, (3,3), 1)
+    # processed = cv2.bilateralFilter(sharp, 5, 75, 75)
+    # processed = cv2.medianBlur(sharp, 3)
+    _, processed = cv2.threshold(processed, 170, 255, cv2.THRESH_BINARY)
 
     return bnw, sharp, processed
 
 
 def find_contours(img):
-    contours, _ = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    print(len(contours))
+    print(contours)
     return contours
 
 
@@ -143,7 +147,7 @@ def ocr_grid_numbers(position_number_list, img):
         # Print the recognized number and its position
         position_number_list[i] = (x, y), number_text.strip()
         # print(f"Number: {number_text.strip()}, Position: ({x}, {y})")
-
+    position_number_list = [((x,y), z) for ((x,y), z) in position_number_list if z != '']
     return sorted(position_number_list, key=lambda x: [x[0][1], x[0][0]])
 
 
@@ -176,16 +180,17 @@ def grid_representation_from_image(img):
         for j in range(rows):
             grid_sq = img[i*sq_side:(i+1)*sq_side, j*sq_side:(j+1)*sq_side]
             white_count = np.count_nonzero(grid_sq)
-            print(f"#: {i},{j}\tWhite: {white_count}\tResult: {white_count >= sq_side*sq_side*0.5}")
+            # print(f"#: {i},{j}\tWhite: {white_count}\tResult: {white_count >= sq_side*sq_side*0.5}")
             grid_representation[i, j] = 1 if white_count >= sq_side*sq_side*0.7 else 0 if white_count <= sq_side*sq_side*0.4 else 2
-    print(grid_representation)
+    # print(grid_representation)
+    return grid_representation
 
 
 # def incorporate_numbers(grid)
 
 
 # Create 3 versions of Grid image
-img_path = "Original Images/Crossword-00015.jpeg"
+img_path = "Original Images/Crossword-00045.jpeg"
 grid_img, clues_img = find_grid_and_clues(img_path)
 gray_grid_img, sharp_grid_img, processed_grid_img = process_image(grid_img)
 gray_clues_img, sharp_clues_img, processed_clues_img = process_image(clues_img)
@@ -194,20 +199,32 @@ gray_clues_img, sharp_clues_img, processed_clues_img = process_image(clues_img)
 grid_contour_list = find_contours(processed_grid_img)
 contour_img = cv2.drawContours(grid_img, grid_contour_list, -1, (0,255,0), 3)
 grid_num_pos_list, grid_num_img = filter_number_contours(grid_contour_list, grid_img)
-grid_num_prediction_list = ocr_grid_numbers(grid_num_pos_list, sharp_grid_img)
+grid_num_prediction_list = ocr_grid_numbers(grid_num_pos_list, gray_grid_img)
 
 # Find clues list
 across_list, down_list = ocr_clues(clues_img)
 # clues_text2 = ocr_clues(sharp_clues_img)
 
-grid_representation_from_image(gray_grid_img)
+grid_representation = grid_representation_from_image(gray_grid_img)
 
 
+# for i in range(12):
+#     cv2.line(grid_img, ((i+1)*50,0), ((i+1)*50,650), (255,69,0), 2)
+#     cv2.line(grid_img, (0, (i + 1) * 50), (650, (i + 1) * 50), (255, 69, 0), 3)
 
-cv2.imshow('Grid Image', processed_grid_img)
+for (x,y), num in grid_num_prediction_list:
+    grid_num = (x // 50, y // 50)
+    remainder = (x % 50, y % 50)
+    if remainder[0] > 22:
+        print(f"#####CHECK HERE !!!!")
+        grid_num = grid_num[0]+1, grid_num[1]
+    print(f"Number: {num}\t Grid: {grid_num}\tRemainder: {remainder}")
+
+
+cv2.imshow('Grid Image', grid_img)
 # cv2.imshow('Clues Image', gray_clues_img)
 # cv2.imshow('Sharp Image', sharp_grid_img)
-# cv2.imshow('Processed Image', processed_clues_img)
+cv2.imshow('Processed Image', processed_grid_img)
 cv2.imshow('Contour Image', contour_img)
 
 cv2.waitKey(0)
