@@ -34,7 +34,7 @@ You can then play the crossword directly in the interface.
 To start the application, run the following command:
 
 ```
-python app.py
+python game.py image.jpeg
 ```
 
 ## Limitations
